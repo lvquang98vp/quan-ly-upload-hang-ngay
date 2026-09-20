@@ -128,7 +128,9 @@ export default function AccountsTable({
                   )}
                   {i === 0 && (
                     <td rowSpan={rowCount} className="px-2 py-2 align-top">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${PLATFORM_BADGE[acc.platform]}`}>
+                      <span
+                        className={`inline-block w-24 rounded-full px-2 py-0.5 text-center text-xs font-medium ${PLATFORM_BADGE[acc.platform]}`}
+                      >
                         {PLATFORM_LABELS[acc.platform]}
                       </span>
                     </td>
@@ -139,17 +141,12 @@ export default function AccountsTable({
                   </td>
 
                   <td className="px-2 py-2 text-xs text-slate-500 dark:text-slate-400">
-                    {!entry ? (
-                      "Chưa có upload nào"
-                    ) : isTeepublic ? (
-                      <>
-                        Hết hạn sau <Countdown target={entry.dropAt as string} />
-                      </>
-                    ) : (
-                      <>
-                        Làm mới sau <Countdown target={acc.nextResetAt as string} />
-                      </>
-                    )}
+                    {entry &&
+                      (isTeepublic ? (
+                        <Countdown target={entry.dropAt as string} />
+                      ) : (
+                        <Countdown target={acc.nextResetAt as string} />
+                      ))}
                   </td>
 
                   <td className="relative px-2 py-2">
