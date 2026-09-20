@@ -139,14 +139,12 @@ export default function AccountsTable({
                   </td>
 
                   <td className="px-2 py-2 text-xs text-slate-500 dark:text-slate-400">
-                    {isTeepublic ? (
-                      entry ? (
-                        <>
-                          Hết hạn sau <Countdown target={entry.dropAt as string} />
-                        </>
-                      ) : (
-                        "Chưa có upload nào"
-                      )
+                    {!entry ? (
+                      "Chưa có upload nào"
+                    ) : isTeepublic ? (
+                      <>
+                        Hết hạn sau <Countdown target={entry.dropAt as string} />
+                      </>
                     ) : (
                       <>
                         Làm mới sau <Countdown target={acc.nextResetAt as string} />
