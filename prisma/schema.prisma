@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Platform is a validated string ("REDBUBBLE" | "TEEPUBLIC") enforced in
+// application code (see src/lib/types.ts) rather than a native enum, kept
+// consistent with when this schema targeted SQLite (no enum support there).
+model Account {
+  id        String        @id @default(cuid())
+  code      String        @unique
+  platform  String
+  storeLink String?
+  createdAt DateTime      @default(now())
+  entries   UploadEntry[]
+}
+
+model UploadEntry {
+  id         String   @id @default(cuid())
+  accountId  String
+  quantity   Int
+  uploadedAt DateTime @default(now())
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, uploadedAt])
+}
