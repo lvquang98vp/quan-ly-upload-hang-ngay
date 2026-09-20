@@ -7,15 +7,8 @@ import {
   getTeepublicWindowStart,
 } from "@/lib/timezone";
 
-// No mandatory retention beyond what's needed for the reset math (max 48h),
-// so old rows are opportunistically swept out on every read.
-const RETENTION_MS = 48 * 60 * 60 * 1000;
-
 export async function GET() {
   const now = new Date();
-  await prisma.uploadEntry.deleteMany({
-    where: { uploadedAt: { lt: new Date(now.getTime() - RETENTION_MS) } },
-  });
 
   const accounts = await prisma.account.findMany({
     include: { entries: true },

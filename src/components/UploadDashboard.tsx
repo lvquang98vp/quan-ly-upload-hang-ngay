@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { AccountWithCount, Platform } from "@/lib/types";
+import type { AccountWithCount, Platform, UploadEntryView } from "@/lib/types";
 import AccountsTable from "./AccountsTable";
 
 export default function UploadDashboard() {
@@ -49,15 +49,40 @@ export default function UploadDashboard() {
     return null;
   }
 
-  async function handleAddQuantity(_id: string, code: string, quantity: number): Promise<string | null> {
+  async function handleAddQuantity(id: string, code: string, quantity: number): Promise<string | null> {
+    // Update the number on screen immediately instead of waiting on the
+    // create-then-refetch round trip to Neon; reconcile with the server in
+    // the background afterward.
+    const now = new Date();
+    setAccounts(
+      (prev) =>
+        prev?.map((acc) => {
+          if (acc.id !== id) return acc;
+          const optimisticEntry: UploadEntryView = {
+            id: `optimistic-${now.getTime()}`,
+            quantity,
+            uploadedAt: now.toISOString(),
+            dropAt: acc.platform === "TEEPUBLIC" ? new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
+          };
+          return {
+            ...acc,
+            currentCount: acc.currentCount + quantity,
+            entries: [...acc.entries, optimisticEntry],
+          };
+        }) ?? prev
+    );
+
     const res = await fetch("/api/uploads/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: [{ accountCode: code, quantity }] }),
     });
     const data = await res.json();
-    if (!res.ok) return data.error ?? "Không ghi nhận được.";
-    await load();
+    if (!res.ok) {
+      await load(); // roll back the optimistic guess
+      return data.error ?? "Không ghi nhận được.";
+    }
+    load(); // reconcile with the real entry id/timestamp in the background
     return null;
   }
 
@@ -68,8 +93,21 @@ export default function UploadDashboard() {
   }
 
   async function handleUndo(entryId: string) {
+    setAccounts(
+      (prev) =>
+        prev?.map((acc) => {
+          const removed = acc.entries.find((e) => e.id === entryId);
+          if (!removed) return acc;
+          return {
+            ...acc,
+            currentCount: acc.currentCount - removed.quantity,
+            entries: acc.entries.filter((e) => e.id !== entryId),
+          };
+        }) ?? prev
+    );
+
     await fetch(`/api/uploads/${entryId}`, { method: "DELETE" });
-    await load();
+    load();
   }
 
   return (

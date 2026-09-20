@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 
 type ConfirmItem = { accountCode: string; quantity: number };
 
+// Entries older than 48h are never read by either platform's window logic,
+// so cleanup is pure storage hygiene, not correctness-critical. Only run it
+// occasionally here (the write path) instead of on every GET /api/accounts,
+// which is by far the hottest endpoint.
+const RETENTION_MS = 48 * 60 * 60 * 1000;
+const CLEANUP_PROBABILITY = 0.05;
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const items: ConfirmItem[] = Array.isArray(body?.items) ? body.items : [];
@@ -34,6 +41,12 @@ export async function POST(request: Request) {
       uploadedAt: now,
     })),
   });
+
+  if (Math.random() < CLEANUP_PROBABILITY) {
+    await prisma.uploadEntry.deleteMany({
+      where: { uploadedAt: { lt: new Date(now.getTime() - RETENTION_MS) } },
+    });
+  }
 
   return NextResponse.json({ ok: true, count: valid.length });
 }
