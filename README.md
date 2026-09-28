@@ -1,11 +1,167 @@
-## Quản lý Upload Hằng Ngày
+# Quản lý Upload Hằng Ngày
 
-Theo dõi số lượng design đã upload mỗi ngày cho từng tài khoản Redbubble và TeePublic:
+Web app cá nhân để theo dõi số lượng design đã upload mỗi ngày cho từng tài khoản
+Redbubble và TeePublic, với logic reset khác nhau theo từng nền tảng. Truy cập được
+từ nhiều thiết bị (điện thoại, máy tính) vì dữ liệu nằm trên database chung (Neon),
+không phải file local.
 
-- **Redbubble**: đếm reset về 0 lúc **14:00 giờ Việt Nam** mỗi ngày.
-- **TeePublic**: mỗi lần upload có cửa sổ trượt **24 giờ** riêng, tự động rơi ra khỏi tổng khi hết hạn.
+> **Đọc file này trước khi sửa bất cứ gì.** Nó là nguồn thông tin đầy đủ nhất về dự
+> án — quyết định kỹ thuật, lý do đằng sau, lịch sử các lỗi đã sửa. Xem thêm rule bắt
+> buộc ở cuối file.
 
-### Chạy local
+## Repo & deploy hiện tại
+
+- **GitHub**: https://github.com/lvquang98vp/quan-ly-upload-hang-ngay (branch `main`,
+  push lên là Vercel tự deploy lại).
+- **Hosting**: Vercel, 1 project duy nhất (đã từng bị tạo trùng 2 project do import
+  GitHub 2 lần — đã xoá bớt, chỉ giữ 1).
+- **Database**: Postgres trên **Neon** (free tier) — dùng chung 1 database cho cả
+  local dev lẫn production (không có database riêng cho local), để dữ liệu nhất
+  quán mọi lúc.
+
+## Tech stack
+
+- **Next.js 16** (App Router, Turbopack), React 19, TypeScript.
+- **Tailwind CSS v4**.
+- **Prisma 6.19.3** + Postgres (Neon). Cố định version 6.x vì Prisma 7 (bản mới nhất
+  lúc viết README này) đổi cách cấu hình datasource, không tương thích ngược — không
+  nâng cấp lên Prisma 7 trừ khi có lý do rõ ràng và migrate schema cẩn thận.
+- Không dùng thư viện timezone ngoài (date-fns-tz, luxon...) — Việt Nam có offset cố
+  định UTC+7, không có DST, nên chỉ cần cộng/trừ mili-giây thủ công
+  ([src/lib/timezone.ts](src/lib/timezone.ts)).
+
+## Cấu trúc thư mục
+
+```
+prisma/schema.prisma          # Account, UploadEntry (2 bảng, xem bên dưới)
+src/lib/
+  types.ts                    # Platform, AccountWithCount, UploadEntryView
+  timezone.ts                 # Tính boundary reset Redbubble / window TeePublic
+  auth.ts                     # Hash password (Web Crypto, chạy được cả Edge lẫn Node)
+  prisma.ts                   # Prisma client singleton
+  format.ts                   # Format HH:MM:SS cho countdown
+src/proxy.ts                  # Middleware bảo vệ trang bằng APP_PASSWORD (Next 16
+                               # đổi tên quy ước "middleware.ts" -> "proxy.ts")
+src/app/
+  page.tsx                    # Render UploadDashboard
+  login/page.tsx              # Trang nhập mật khẩu
+  api/accounts/route.ts       # GET (danh sách + tính toán), POST (tạo account)
+  api/accounts/[id]/route.ts  # DELETE (xoá account), PATCH (sửa storeLink)
+  api/uploads/confirm/route.ts# POST — tạo 1 UploadEntry mới (dùng cho cả 2 nền tảng)
+  api/uploads/[id]/route.ts   # DELETE — xoá 1 entry cụ thể (dùng cho "Hoàn tác")
+  api/login/route.ts          # POST — kiểm tra APP_PASSWORD, set cookie
+src/components/
+  UploadDashboard.tsx         # State chính, gọi API, optimistic update
+  AccountsTable.tsx           # Bảng kiểu Excel — UI chính của cả app
+  StoreLinkCell.tsx           # Ô link store: click mở tab, double-click sửa
+  Countdown.tsx               # Đếm ngược HH:MM:SS, tick mỗi giây
+```
+
+## Mô hình dữ liệu
+
+```prisma
+model Account {
+  id        String        @id @default(cuid())
+  code      String        @unique   // vd "Red-1", "Tee-10"
+  platform  String                  // "REDBUBBLE" | "TEEPUBLIC", validate ở app code
+  storeLink String?
+  createdAt DateTime      @default(now())
+  entries   UploadEntry[]
+}
+
+model UploadEntry {
+  id         String   @id @default(cuid())
+  accountId  String
+  quantity   Int
+  uploadedAt DateTime @default(now())
+}
+```
+
+`platform` là string thường (không phải enum Postgres) — quyết định này có từ lúc
+schema còn dùng SQLite (không hỗ trợ enum) và giữ nguyên khi chuyển sang Postgres để
+không phải sửa lại `isPlatform()` và toàn bộ code liên quan. Không cần đổi trừ khi có
+lý do cụ thể.
+
+## Logic nghiệp vụ — quan trọng, đừng sửa nhầm
+
+### Redbubble — reset cố định 14:00 giờ VN
+
+- Mốc reset gần nhất = 14:00 hôm nay nếu giờ hiện tại (VN) ≥ 14:00, ngược lại là
+  14:00 hôm qua.
+- Số lượng hiển thị = **tổng cộng dồn** tất cả `UploadEntry` của account đó có
+  `uploadedAt >= mốc_reset_gần_nhất`. Mỗi lần bấm "Ghi" chỉ tạo 1 entry mới, UI gộp
+  chúng lại thành 1 dòng duy nhất hiển thị tổng.
+- Xem [getRedbubbleResetBoundary()](src/lib/timezone.ts).
+
+### TeePublic — sliding window 24h theo từng lần upload
+
+- **Không cộng dồn theo yêu cầu người dùng** — mỗi lần "Ghi" là 1 dòng riêng trong
+  bảng, với đồng hồ đếm ngược 24h riêng (`dropAt = uploadedAt + 24h`). Khi hết hạn,
+  dòng đó tự biến mất khỏi tính toán (không cần cron job — chỉ cần filter theo thời
+  gian mỗi lần query).
+- Việc UI hiển thị nhiều dòng cho 1 account là **cố ý**, không phải bug — xem
+  `AccountsTable.tsx`, đoạn `rowSpan` cho cột Tài khoản/Link store/Nền tảng/Nhập
+  upload mới/Xoá (dùng chung cho cả nhóm dòng), còn Số lượng/Đếm ngược/Hoàn tác là
+  riêng từng dòng.
+
+### Hoàn tác (Undo)
+
+- Xoá đúng 1 `UploadEntry` cụ thể qua `DELETE /api/uploads/[id]`. Vì số liệu và
+  countdown đều **tính lại từ dữ liệu còn trong DB** mỗi lần load (không lưu state
+  trung gian), xoá 1 entry tự động làm đúng lại mọi con số liên quan — không cần
+  logic "khôi phục" riêng.
+- Có popup xác nhận "Có/Không" ngay dưới nút Hoàn tác (không dùng `window.confirm` vì
+  không đẹp và không đồng bộ style) trước khi thực sự gọi API xoá.
+
+### Dọn dữ liệu cũ
+
+- Entry cũ hơn 48h không bao giờ được đọc bởi logic của 2 nền tảng (Redbubble nhìn
+  lại tối đa ~24h, TeePublic nhìn lại đúng 24h) — dọn dẹp **không ảnh hưởng tính
+  đúng**, chỉ là vệ sinh storage.
+- Vì vậy cleanup **không** chạy trên `GET /api/accounts` (endpoint bị gọi nhiều nhất —
+  mỗi lần load trang + poll 60s), mà chạy ngẫu nhiên (~5% số lần) trong
+  `POST /api/uploads/confirm` — xem lịch sử sửa lỗi latency bên dưới.
+
+## Hiệu năng — quyết định quan trọng, đừng revert
+
+Neon nằm ở Mỹ (region us-east-2), mỗi round-trip từ Việt Nam tốn thật sự
+400ms–1s+. Ban đầu bấm "Ghi" phải chờ hết round-trip (tạo entry → tải lại toàn bộ
+danh sách) mới thấy số cập nhật — cảm giác delay rõ rệt, người dùng đã phàn nàn.
+
+Đã sửa bằng **optimistic UI update** trong `UploadDashboard.tsx`
+(`handleAddQuantity`, `handleUndo`): cập nhật state React ngay khi bấm nút, trước
+khi gọi API — số nhảy lên tức thì, còn network request chạy nền phía sau để đồng bộ
+thật với server. Nếu request lỗi thì mới gọi `load()` để rollback về đúng dữ liệu
+server. **Đừng bỏ optimistic update này để "đơn giản hoá code"** — nó là fix trực
+tiếp cho vấn đề UX đã được người dùng xác nhận.
+
+## Auth
+
+Bảo vệ bằng 1 password đơn giản qua biến `APP_PASSWORD`:
+
+- Để trống → trang mở tự do, không cần đăng nhập.
+- Có set → `src/proxy.ts` (chạy trên mọi request nhờ Next.js middleware/proxy
+  convention) redirect về `/login` nếu cookie `app_auth` không khớp hash SHA-256 của
+  password. Dùng Web Crypto (`crypto.subtle`) thay vì Node `crypto` module vì cần
+  chạy được cả ở Edge runtime lẫn Node runtime.
+
+## Giao diện
+
+1 bảng duy nhất kiểu Excel (không phải 2 khu vực Redbubble/TeePublic tách riêng như
+bản đầu tiên — đã đổi theo yêu cầu người dùng), sắp xếp theo bảng chữ cái
+(`orderBy: { code: "asc" }` ở API):
+
+- Ô tìm kiếm lọc theo mã tài khoản (client-side, không gọi API).
+- Cột **Link store**: click mở tab mới, double-click chuyển sang sửa link. Xử lý
+  click/double-click bằng mốc thời gian (không dùng `setTimeout` debounce) — xem
+  lịch sử lỗi bên dưới, đây là chỗ từng có bug thật.
+- Cột **Đếm ngược**: chỉ hiện giờ chạy trần (HH:MM:SS), không kèm chữ mô tả. Trống
+  hoàn toàn nếu account chưa có upload nào trong cửa sổ hiện tại (không chạy đồng hồ
+  vô nghĩa).
+- Tag nền tảng (Redbubble/TeePublic) có độ rộng cố định (`w-24`) để đều hàng.
+- Dòng cuối bảng dùng để thêm tài khoản mới (mã + link + chọn nền tảng).
+
+## Chạy local
 
 ```bash
 npm install
@@ -13,29 +169,71 @@ npx prisma migrate deploy
 npm run dev
 ```
 
-Mở http://localhost:3000.
+Mở http://localhost:3000. `.env` đã trỏ thẳng vào Neon (cùng database với
+production) — **cẩn thận khi test, dữ liệu bạn thêm/xoá local sẽ ảnh hưởng luôn tới
+bản đang chạy thật.**
 
-### Cấu hình
+## Cấu hình / biến môi trường
 
-- `.env` chứa `DATABASE_URL` cho Prisma — trỏ tới database Postgres trên **Neon** (free tier), dùng chung cho cả local dev lẫn production, để dữ liệu nhất quán ở mọi nơi.
-- `.env.local` chứa `APP_PASSWORD` — đặt một mật khẩu bất kỳ để bảo vệ trang bằng cookie; để trống thì trang mở tự do (không cần đăng nhập).
+- `.env` → `DATABASE_URL` (connection string Neon, có `-pooler` trong hostname —
+  **đừng đổi sang non-pooled endpoint**, pooled connection cần thiết cho môi trường
+  serverless của Vercel).
+- `.env.local` → `APP_PASSWORD` (tuỳ chọn).
+- Trên Vercel: khai báo y hệt 2 biến trên trong Project Settings → Environment
+  Variables → "Production and Preview".
 
-### Deploy lên Vercel
+`package.json` có `postinstall: prisma generate` và `build: prisma generate && next
+build` — **bắt buộc phải có**, thiếu là build fail trên Vercel (mỗi lần deploy cài
+`node_modules` mới hoàn toàn, cần lệnh này để tạo lại Prisma Client khớp schema).
 
-Database đã sẵn sàng cho production (Postgres/Neon, không phải SQLite file), nên chỉ cần:
+## Lịch sử các lỗi đã gặp & đã sửa (đọc để không lặp lại)
 
-1. Đẩy code lên GitHub.
-2. Import repo vào Vercel.
-3. Trong Vercel project → Settings → Environment Variables, khai báo `DATABASE_URL` (copy nguyên giá trị từ `.env` local) và `APP_PASSWORD` nếu muốn bảo vệ trang.
-4. Deploy — mọi thiết bị truy cập vào link Vercel đều đọc/ghi chung một database trên Neon.
+- **Đường dẫn SQLite lồng nhau**: `DATABASE_URL="file:./prisma/dev.db"` khi
+  schema.prisma nằm trong `prisma/` sẽ tạo ra `prisma/prisma/dev.db` (Prisma resolve
+  path SQLite tương đối theo vị trí file schema, không phải theo cwd). Đã hết liên
+  quan từ khi chuyển sang Postgres/Neon nhưng ghi lại phòng khi quay lại dùng SQLite.
+- **Prisma 7 không tương thích**: bản mới nhất lúc cài lần đầu là 7.0.0-rc, đổi cách
+  khai báo datasource (bỏ `url` trong schema, cần `prisma.config.ts` + driver
+  adapter) — gây lỗi migrate. Đã pin về 6.19.3 (bản ổn định cuối của nhánh 6.x).
+- **Next.js 16 đổi `middleware.ts` → `proxy.ts`**: file/export vẫn hoạt động với tên
+  cũ nhưng bị deprecate, đã đổi tên file + export function thành `proxy` theo quy
+  ước mới.
+- **Cache `.next` cũ gây lỗi "Module not found"** sau khi xoá component: `next dev`
+  đôi khi giữ cache tham chiếu tới file đã xoá. Fix: `rm -rf .next` trước khi chạy
+  lại dev server sau khi xoá/đổi tên file lớn.
+- **`window.open()` bị chặn popup**: bản đầu của `StoreLinkCell` dùng `setTimeout` để
+  phân biệt click/double-click, khiến `window.open()` chạy ngoài user-gesture đồng
+  bộ → bị trình duyệt chặn làm popup (ảnh hưởng cả người dùng thật, không chỉ môi
+  trường test). Fix: mở link ngay trong handler `onClick` (đồng bộ), chỉ dùng mốc
+  thời gian (`Date.now()` so sánh) để bỏ qua click thứ 2 của 1 double-click, không
+  dùng `setTimeout` delay việc mở link.
+- **Header bảng bị lệch ("nghiêng")**: text header viết hoa (`uppercase`) trong cột
+  hẹp bị wrap 2 dòng ở điểm khác nhau giữa các cột → đường viền dưới header trông như
+  bậc thang. Fix: `whitespace-nowrap` cho toàn bộ `<th>`.
+- **Delay cảm nhận rõ giữa bấm "Ghi" và số cập nhật**: xem mục "Hiệu năng" ở trên.
 
-Không cần chạy lại `prisma migrate` khi deploy vì bảng đã được tạo sẵn trên Neon từ máy local.
+## Ý tưởng đã bàn nhưng CHƯA implement
 
-### Giao diện
+Đừng tưởng những cái này đã có sẵn — chỉ mới là ý tưởng thảo luận, chưa có dòng code
+nào:
 
-Một bảng duy nhất (kiểu Excel) liệt kê tất cả tài khoản, sắp xếp theo bảng chữ cái, có tag phân biệt Redbubble/TeePublic:
+- **Đọc tự động "tổng số design hiện có" từ trang store công khai (server-side
+  scrape)**: đã test — Redbubble server-render sẵn số lượng trong HTML thô (khả thi
+  về mặt kỹ thuật), TeePublic chặn bot rất nhanh (vài request là bị "Forbidden").
+  Ngoài ra số này là **tổng lifetime**, khác bản chất với "Số lượng" (quota theo
+  ngày/24h) app đang track — nếu làm thì phải là cột riêng, không thay thế cột hiện
+  tại.
+- **Browser extension gắn theo từng profile**: ý tưởng thay thế cho scrape — extension
+  chạy trong chính profile trình duyệt đã đăng nhập của người dùng, đọc số ngay trên
+  trang dashboard riêng (không phải trang public), gửi về app qua 1 API endpoint mới
+  (cần thêm cơ chế auth riêng cho extension, không dùng chung `APP_PASSWORD`). Ưu
+  điểm: không bị chặn bot vì là phiên trình duyệt thật của người dùng, dùng được cho
+  cả 2 nền tảng. Cần: (1) content script đọc đúng vị trí số trong DOM trang dashboard
+  thật (phải xin người dùng cung cấp HTML/screenshot vì AI không được tự đăng nhập
+  vào tài khoản seller của người dùng), (2) cơ chế map "profile nào ứng với account
+  code nào" trong extension, (3) endpoint mới nhận data kèm khoá bí mật riêng.
 
-- Ô tìm kiếm ở đầu bảng để lọc nhanh theo mã tài khoản.
-- Mỗi dòng có ô nhập số lượng riêng — gõ số design vừa upload rồi bấm "Ghi" (hoặc Enter) để **cộng dồn** vào tổng hiện tại.
-- Dòng cuối bảng dùng để thêm tài khoản mới (mã + chọn nền tảng).
-- Nút "Xoá" ở cuối mỗi dòng để xoá tài khoản và toàn bộ dữ liệu upload liên quan.
+## Quy tắc bắt buộc cho mọi thay đổi
+
+Xem [CLAUDE.md](CLAUDE.md) — mọi session/AI làm việc trên project này phải cập nhật
+lại README.md này ngay khi có thay đổi, không được để README lạc hậu so với code.
