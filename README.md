@@ -52,6 +52,7 @@ src/app/
   api/login/route.ts          # POST — kiểm tra APP_PASSWORD, set cookie
 src/components/
   UploadDashboard.tsx         # State chính, gọi API, optimistic update
+  PlatformStats.tsx           # 2 stat tile đếm số tài khoản theo nền tảng
   AccountsTable.tsx           # Bảng kiểu Excel — UI chính của cả app
   StoreLinkCell.tsx           # Ô link store: click mở tab, double-click sửa
   Countdown.tsx               # Đếm ngược HH:MM:SS, tick mỗi giây
@@ -146,6 +147,11 @@ Bảo vệ bằng 1 password đơn giản qua biến `APP_PASSWORD`:
   chạy được cả ở Edge runtime lẫn Node runtime.
 
 ## Giao diện
+
+Phía trên bảng có 2 **stat tile** ([PlatformStats.tsx](src/components/PlatformStats.tsx))
+hiện số lượng tài khoản đang quản lý theo từng nền tảng (đếm trực tiếp từ mảng
+`accounts` đã tải, không gọi API riêng) — chấm màu dùng lại đúng tông với tag nền
+tảng trong bảng (cam = Redbubble, xanh ngọc = TeePublic) để nhất quán nhận diện.
 
 1 bảng duy nhất kiểu Excel (không phải 2 khu vực Redbubble/TeePublic tách riêng như
 bản đầu tiên — đã đổi theo yêu cầu người dùng), sắp xếp theo bảng chữ cái

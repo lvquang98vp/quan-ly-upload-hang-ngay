@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AccountWithCount, Platform, UploadEntryView } from "@/lib/types";
 import AccountsTable from "./AccountsTable";
+import PlatformStats from "./PlatformStats";
 
 export default function UploadDashboard() {
   const [accounts, setAccounts] = useState<AccountWithCount[] | null>(null);
@@ -122,14 +123,17 @@ export default function UploadDashboard() {
       {accounts === null && !error ? (
         <p className="text-center text-sm text-slate-400">Đang tải...</p>
       ) : (
-        <AccountsTable
-          accounts={accounts ?? []}
-          onAddQuantity={handleAddQuantity}
-          onAddAccount={handleAddAccount}
-          onDelete={handleDelete}
-          onUndo={handleUndo}
-          onUpdateStoreLink={handleUpdateStoreLink}
-        />
+        <>
+          <PlatformStats accounts={accounts ?? []} />
+          <AccountsTable
+            accounts={accounts ?? []}
+            onAddQuantity={handleAddQuantity}
+            onAddAccount={handleAddAccount}
+            onDelete={handleDelete}
+            onUndo={handleUndo}
+            onUpdateStoreLink={handleUpdateStoreLink}
+          />
+        </>
       )}
     </div>
   );
