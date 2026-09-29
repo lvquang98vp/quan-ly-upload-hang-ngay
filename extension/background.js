@@ -48,14 +48,21 @@ function waitForTabComplete(tabId) {
 
 // Injected into the page — must be self-contained (no closure references).
 // Redbubble renders "<n> items" near the shop's result count; TeePublic
-// renders "Designs <n>" in the profile tab.
+// renders "Designs <n>" in the profile tab. Also returns a snippet of text
+// around the nearest "design"/"item" mention so a failed match can be
+// diagnosed from the console instead of just silently returning null.
 function extractDesignCount(platform) {
   const text = document.body.innerText;
-  const pattern = platform === "REDBUBBLE" ? /(\d[\d,]*)\s*items?/i : /Designs\s*([\d,]+)/i;
-  const match = text.match(pattern);
-  if (!match) return null;
-  const n = parseInt(match[1].replace(/,/g, ""), 10);
-  return Number.isFinite(n) ? n : null;
+  const pattern = platform === "REDBUBBLE" ? /(\d[\d,]*)\s*items?/i : /designs?\s*([\d,]+)/i;
+  const match = pattern.exec(text);
+  if (match) {
+    const n = parseInt(match[1].replace(/,/g, ""), 10);
+    if (Number.isFinite(n)) return { totalDesigns: n, debugSnippet: null };
+  }
+  const hintPattern = platform === "REDBUBBLE" ? /item/i : /design/i;
+  const hintIndex = text.search(hintPattern);
+  const debugSnippet = hintIndex >= 0 ? text.slice(Math.max(0, hintIndex - 40), hintIndex + 60) : null;
+  return { totalDesigns: null, debugSnippet };
 }
 
 async function readOneStore(store) {
@@ -67,7 +74,12 @@ async function readOneStore(store) {
       func: extractDesignCount,
       args: [store.platform],
     });
-    return result;
+    if (result.totalDesigns === null) {
+      console.warn(`[sync] ${store.code} (${store.storeLink}) — không tìm thấy số. Đoạn text gần nhất:`, result.debugSnippet);
+    } else {
+      console.log(`[sync] ${store.code} -> ${result.totalDesigns}`);
+    }
+    return result.totalDesigns;
   } finally {
     await chrome.tabs.remove(tab.id).catch(() => {});
   }
@@ -79,7 +91,8 @@ async function syncStores(stores) {
     try {
       const totalDesigns = await readOneStore(store);
       results.push({ code: store.code, totalDesigns });
-    } catch {
+    } catch (err) {
+      console.error(`[sync] ${store.code} lỗi:`, err);
       results.push({ code: store.code, totalDesigns: null });
     }
     await sleep(DELAY_BETWEEN_STORES_MS);
