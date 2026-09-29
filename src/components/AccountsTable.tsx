@@ -271,11 +271,11 @@ export default function AccountsTable({
                     </td>
                   )}
 
-                  <td className="px-3 py-2.5 text-right text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                  <td className="px-3 py-2.5 text-right align-top text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100">
                     {acc.platform === "TEEPUBLIC" ? (entry ? entry.quantity : 0) : acc.currentCount}
                   </td>
 
-                  <td className="px-3 py-2.5 text-xs text-slate-500 dark:text-slate-400">
+                  <td className="px-3 py-2.5 align-top text-xs text-slate-500 dark:text-slate-400">
                     {entry &&
                       (acc.platform === "TEEPUBLIC" ? (
                         <Countdown target={entry.dropAt as string} />
