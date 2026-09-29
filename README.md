@@ -283,15 +283,29 @@ lặp lại liên tục, dù là từ trình duyệt thật).
 3. Copy ID extension Chrome cấp, set vào biến `NEXT_PUBLIC_SYNC_EXTENSION_ID`
    (`.env.local` + Vercel Environment Variables).
 
-### Bug đã gặp: extension trả về null cho mọi account
+### Bug đã gặp: extension timeout hàng loạt ("Tải trang quá lâu")
 
-`waitForTabComplete()` trong `extension/background.js` chỉ lắng nghe sự kiện
-`chrome.tabs.onUpdated` để biết tab đã tải xong. Nếu trang tải nhanh (hoặc có cache),
-tab có thể đã đạt trạng thái `"complete"` **trước khi** listener kịp gắn vào (vì
-`chrome.tabs.create` là async, mất thời gian await) — khiến toàn bộ lần đồng bộ timeout
-sau 15s và trả về `null` cho mọi account, dù extension chạy đúng cơ chế mở
-tab/đóng tab. Đã fix bằng cách kiểm tra thêm trạng thái hiện tại của tab
-(`chrome.tabs.get`) ngay sau khi gắn listener, không chỉ dựa vào sự kiện tương lai.
+Hai lỗi liên tiếp trên cùng 1 cơ chế chờ tab tải xong trong
+`extension/background.js`:
+
+1. **Race condition** (đã fix): `waitForTabComplete()` bản đầu chỉ lắng nghe sự kiện
+   `chrome.tabs.onUpdated`. Nếu trang tải nhanh/có cache, tab có thể đã đạt
+   `"complete"` **trước khi** listener kịp gắn vào (vì `chrome.tabs.create` là async) —
+   timeout sau 15s, trả `null` cho mọi account dù extension chạy đúng cơ chế.
+2. **Chrome throttle tab nền** (nguyên nhân chính, đã fix bằng cách đổi hẳn chiến
+   lược chờ): dù đã fix race condition ở trên, test tay thực tế vẫn timeout **100%**
+   với TeePublic và ~40% với Redbubble. Log console cho thấy hầu hết lỗi là
+   `"Tải trang quá lâu."` — tức sự kiện `"complete"` **không bao giờ fire** trong
+   15s cho phần lớn tab. Nguyên nhân: Chrome tự động **throttle** (ghìm tốc độ) các
+   tab nền (`active: false`) khi cửa sổ không ở foreground, khiến việc tải trang
+   chậm hẳn so với bình thường — không liên quan gì tới bị chặn bot.
+
+   **Fix**: bỏ hẳn việc chờ sự kiện `"complete"`, thay bằng **poll chủ động**
+   (`pollForDesignCount()`) — cứ mỗi giây thử chạy `executeScript` đọc nội dung tab
+   1 lần, tới khi nào thấy số thì dừng ngay (không cần quan tâm trang đã "tải xong"
+   theo nghĩa đầy đủ hay chưa, vì số cần đọc đã render sẵn trong HTML từ đầu). Vừa
+   nhanh hơn ở trường hợp bình thường (không phải chờ đủ 15s), vừa bền hơn ở trường
+   hợp bị throttle (tự động chờ lâu hơn, tối đa ~25s, thay vì bỏ cuộc sớm).
 
 ## Quy tắc bắt buộc cho mọi thay đổi
 
