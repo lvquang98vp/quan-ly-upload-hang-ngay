@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ExternalLink, Link2 } from "lucide-react";
 import type { Platform } from "@/lib/types";
 import { extractStoreUsername } from "@/lib/storeLink";
 
@@ -70,7 +71,7 @@ export default function StoreLinkCell({
           onBlur={handleSave}
           placeholder="https://..."
           disabled={saving}
-          className="w-36 rounded-lg border border-slate-300 px-2 py-1 text-xs outline-none focus:border-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="w-40 rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
         />
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
@@ -102,11 +103,16 @@ export default function StoreLinkCell({
       title={link ? "Click để mở, double-click để sửa link" : "Double-click để thêm link"}
       className={
         link
-          ? "text-xs font-medium text-blue-600 underline hover:text-blue-800 dark:text-blue-400"
-          : "text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+          ? "inline-flex min-w-0 items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+          : "inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
       }
     >
-      {link ? (username ?? "Link store") : "+ Thêm link"}
+      {link ? (
+        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      ) : (
+        <Link2 className="h-3.5 w-3.5 shrink-0" />
+      )}
+      <span className="truncate">{link ? (username ?? "Link store") : "Thêm link"}</span>
     </button>
   );
 }

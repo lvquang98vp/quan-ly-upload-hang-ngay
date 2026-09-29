@@ -41,6 +41,7 @@ src/lib/
   prisma.ts                   # Prisma client singleton
   format.ts                   # Format HH:MM:SS cho countdown
   extensionBridge.ts          # Gửi lệnh đồng bộ sang extension qua chrome.runtime
+  storeLink.ts                # Tách username từ URL store (Redbubble/TeePublic)
 src/proxy.ts                  # Middleware bảo vệ trang bằng APP_PASSWORD (Next 16
                                # đổi tên quy ước "middleware.ts" -> "proxy.ts")
 src/app/
@@ -55,9 +56,12 @@ src/app/
 src/components/
   UploadDashboard.tsx         # State chính, gọi API, optimistic update, nút Đồng bộ
   PlatformStats.tsx           # 2 stat tile đếm số tài khoản theo nền tảng
-  AccountsTable.tsx           # Bảng kiểu Excel — UI chính của cả app
-  StoreLinkCell.tsx           # Ô link store: click mở tab, double-click sửa
+  AccountsTable.tsx           # UI chính — bảng (desktop) + card (mobile) song song
+  StoreLinkCell.tsx           # Username/link store: click mở tab, double-click sửa
+  SyncButton.tsx              # Icon đồng bộ (↻) dùng lại ở nhiều chỗ
   Countdown.tsx               # Đếm ngược HH:MM:SS, tick mỗi giây
+  ui/Button.tsx                # Button dùng chung: variant × size
+  ui/Badge.tsx                 # PlatformBadge dùng chung
 extension/                    # Extension Chrome riêng (project tách biệt, xem bên dưới)
   manifest.json, background.js, README.md
 ```
@@ -154,27 +158,55 @@ Bảo vệ bằng 1 password đơn giản qua biến `APP_PASSWORD`:
 
 ## Giao diện
 
-Phía trên bảng có 2 **stat tile** ([PlatformStats.tsx](src/components/PlatformStats.tsx))
-hiện số lượng tài khoản đang quản lý theo từng nền tảng (đếm trực tiếp từ mảng
-`accounts` đã tải, không gọi API riêng) — chấm màu dùng lại đúng tông với tag nền
-tảng trong bảng (cam = Redbubble, xanh ngọc = TeePublic) để nhất quán nhận diện.
+### Hệ thống UI dùng chung
 
-1 bảng duy nhất kiểu Excel (không phải 2 khu vực Redbubble/TeePublic tách riêng như
-bản đầu tiên — đã đổi theo yêu cầu người dùng), sắp xếp theo bảng chữ cái
-(`orderBy: { code: "asc" }` ở API):
+`src/components/ui/` chứa các primitive tái sử dụng để đồng nhất style toàn app
+(thay vì mỗi nơi tự viết className riêng):
 
+- `Button.tsx` — 4 variant (`primary`/`secondary`/`danger`/`ghost`) × 3 size
+  (`sm`/`md`/`icon`). Icon action (Xoá, đồng bộ...) dùng `variant="ghost" size="icon"`.
+- `Badge.tsx` — `<PlatformBadge platform={...} />`, độ rộng cố định để 2 nền tảng
+  luôn thẳng hàng.
+
+Icon dùng [lucide-react](https://lucide.dev) (tree-shakeable, chỉ bundle icon nào
+import) thay vì tự vẽ SVG hay dùng chữ — chuẩn phổ biến cho UI kiểu SaaS/dashboard.
+
+### Responsive: bảng trên desktop, card trên mobile
+
+`AccountsTable.tsx` render **2 layout song song trong cùng DOM**, ẩn/hiện bằng CSS
+(`hidden md:block` cho bảng, `md:hidden` cho card — breakpoint `md` = 768px), không
+phải 1 bảng cố gắng tự co giãn:
+
+- **Desktop**: bảng như cũ nhưng gọn hơn — bỏ cột "Link store" và "Hoàn tác" riêng
+  (gộp vào ô Tài khoản và ô Đếm ngược tương ứng), icon thay chữ cho các hành động.
+- **Mobile**: mỗi account là 1 card xếp dọc, không cần cuộn ngang. Đây là fix cho
+  vấn đề đã phát hiện từ bản đầu (bảng rộng ~745px trên màn hình 375px, phải cuộn
+  ngang mới bấm được nút "Ghi" — đúng chỗ dùng nhiều nhất mỗi ngày).
+- Lý do chọn "2 layout song song" thay vì 1 bảng reflow bằng CSS: bảng có
+  `rowSpan` cho nhóm nhiều dòng TeePublic (xem mục sliding-window ở trên) — reflow
+   `<table>` thành block bằng CSS mất hết ngữ nghĩa rowSpan, JS-free 2-layout đơn
+  giản và chắc chắn hơn.
+- Cả 2 layout dùng chung state/handler (`inputs`, `rowError`, `syncingId`,
+  `confirmingEntryId`...) và chung các sub-component nội bộ (`StoreCell`,
+  `UndoControl`, `QuantityForm`) định nghĩa ngay trong `AccountsTable.tsx` — không
+  lặp code logic, chỉ khác phần JSX hiển thị.
+
+### Các điểm khác
+
+- 2 **stat tile** ở đầu trang ([PlatformStats.tsx](src/components/PlatformStats.tsx))
+  hiện số lượng tài khoản theo từng nền tảng, đếm trực tiếp từ mảng `accounts` đã
+  tải (không gọi API riêng).
+- Sắp xếp theo bảng chữ cái (`orderBy: { code: "asc" }` ở API).
 - Ô tìm kiếm lọc theo mã tài khoản (client-side, không gọi API).
-- Cột **Link store**: hiện **username** tách ra từ URL thay vì chữ "Link store"
-  chung chung (`extractStoreUsername()` trong [src/lib/storeLink.ts](src/lib/storeLink.ts)
-  — Redbubble lấy phần sau `/people/`, TeePublic lấy phần sau `/user/`; nếu URL không
-  khớp pattern thì fallback về chữ "Link store"). Click mở tab mới, double-click
-  chuyển sang sửa link. Xử lý click/double-click bằng mốc thời gian (không dùng
-  `setTimeout` debounce) — xem lịch sử lỗi bên dưới, đây là chỗ từng có bug thật.
-- Cột **Đếm ngược**: chỉ hiện giờ chạy trần (HH:MM:SS), không kèm chữ mô tả. Trống
-  hoàn toàn nếu account chưa có upload nào trong cửa sổ hiện tại (không chạy đồng hồ
-  vô nghĩa).
-- Tag nền tảng (Redbubble/TeePublic) có độ rộng cố định (`w-24`) để đều hàng.
-- Dòng cuối bảng dùng để thêm tài khoản mới (mã + link + chọn nền tảng).
+- Username tách ra từ URL thay vì chữ "Link store" chung chung
+  (`extractStoreUsername()` trong [src/lib/storeLink.ts](src/lib/storeLink.ts) —
+  Redbubble lấy phần sau `/people/`, TeePublic lấy phần sau `/user/`; fallback về
+  chữ "Link store" nếu URL không khớp pattern). Click mở tab mới, double-click sửa
+  link — xử lý bằng mốc thời gian, không dùng `setTimeout` debounce (xem lịch sử
+  lỗi bên dưới, từng có bug popup bị chặn ở đây).
+- Cột/dòng "Đếm ngược": chỉ hiện giờ chạy trần (HH:MM:SS), trống hoàn toàn nếu
+  chưa có upload nào trong cửa sổ hiện tại.
+- Dòng cuối cùng dùng để thêm tài khoản mới (mã + link + chọn nền tảng).
 
 ## Chạy local
 
