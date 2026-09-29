@@ -88,7 +88,7 @@ async function syncStores(stores) {
   const results = [];
   for (const store of stores) {
     if (cancelRequested) {
-      console.log("[sync] Đã dừng theo yêu cầu, còn", stores.length - results.length, "account chưa đồng bộ.");
+      console.log(`[sync] Đã dừng theo yêu cầu, còn ${stores.length - results.length} account chưa đồng bộ.`);
       break;
     }
     try {
@@ -98,6 +98,13 @@ async function syncStores(stores) {
       console.error(`[sync] ${store.code} lỗi:`, err);
       results.push({ code: store.code, totalDesigns: null });
     }
+    // Check again right after finishing a store — skip the pacing delay if a
+    // stop came in while that store was running, instead of waiting it out
+    // pointlessly before the top-of-loop check catches it.
+    if (cancelRequested) {
+      console.log(`[sync] Đã dừng theo yêu cầu, còn ${stores.length - results.length} account chưa đồng bộ.`);
+      break;
+    }
     await sleep(DELAY_BETWEEN_STORES_MS);
   }
   cancelRequested = false; // reset so the next run isn't cancelled immediately
@@ -105,8 +112,11 @@ async function syncStores(stores) {
 }
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  console.log("[sync] Nhận tin nhắn từ web:", message?.type);
+
   if (message?.type === "STOP_SYNC") {
     cancelRequested = true;
+    console.log("[sync] Đã đặt cờ dừng — sẽ dừng trong tối đa ~1-2s.");
     sendResponse({ ok: true });
     return false;
   }

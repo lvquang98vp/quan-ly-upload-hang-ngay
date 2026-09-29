@@ -147,7 +147,8 @@ export default function UploadDashboard() {
   }
 
   async function handleStopSync() {
-    await stopSyncViaExtension();
+    const { ok, error } = await stopSyncViaExtension();
+    if (!ok && error) setSyncMessage(error);
   }
 
   async function handleSyncOne(id: string): Promise<string | null> {

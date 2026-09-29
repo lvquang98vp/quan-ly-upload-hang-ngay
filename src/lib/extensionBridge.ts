@@ -50,17 +50,29 @@ export function syncStoresViaExtension(stores: SyncStore[]): Promise<SyncResult[
   });
 }
 
-// Best-effort: tells the extension to stop opening any further stores. The
-// original syncStoresViaExtension() call still resolves normally once the
-// extension responds with whatever it collected before stopping.
-export function stopSyncViaExtension(): Promise<void> {
+// Tells the extension to stop opening any further stores. The original
+// syncStoresViaExtension() call still resolves normally once the extension
+// responds with whatever it collected before stopping. Reports failure
+// instead of silently doing nothing — a stale/unreloaded extension (missing
+// the STOP_SYNC handler) is a real, previously-seen failure mode here.
+export function stopSyncViaExtension(): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
     const extensionId = process.env.NEXT_PUBLIC_SYNC_EXTENSION_ID;
     const runtime = getChromeRuntime();
     if (!extensionId || !runtime) {
-      resolve();
+      resolve({ ok: false, error: "Chưa cài extension đồng bộ." });
       return;
     }
-    runtime.sendMessage(extensionId, { type: "STOP_SYNC" }, () => resolve());
+    runtime.sendMessage(extensionId, { type: "STOP_SYNC" }, (response: unknown) => {
+      if (runtime.lastError) {
+        resolve({ ok: false, error: runtime.lastError.message ?? "Không kết nối được extension." });
+        return;
+      }
+      const ok = (response as { ok?: unknown } | undefined)?.ok === true;
+      resolve({
+        ok,
+        error: ok ? undefined : "Extension không phản hồi đúng — thử tải lại extension ở chrome://extensions.",
+      });
+    });
   });
 }
