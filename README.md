@@ -283,6 +283,16 @@ lặp lại liên tục, dù là từ trình duyệt thật).
 3. Copy ID extension Chrome cấp, set vào biến `NEXT_PUBLIC_SYNC_EXTENSION_ID`
    (`.env.local` + Vercel Environment Variables).
 
+### Bug đã gặp: extension trả về null cho mọi account
+
+`waitForTabComplete()` trong `extension/background.js` chỉ lắng nghe sự kiện
+`chrome.tabs.onUpdated` để biết tab đã tải xong. Nếu trang tải nhanh (hoặc có cache),
+tab có thể đã đạt trạng thái `"complete"` **trước khi** listener kịp gắn vào (vì
+`chrome.tabs.create` là async, mất thời gian await) — khiến toàn bộ lần đồng bộ timeout
+sau 15s và trả về `null` cho mọi account, dù extension chạy đúng cơ chế mở
+tab/đóng tab. Đã fix bằng cách kiểm tra thêm trạng thái hiện tại của tab
+(`chrome.tabs.get`) ngay sau khi gắn listener, không chỉ dựa vào sự kiện tương lai.
+
 ## Quy tắc bắt buộc cho mọi thay đổi
 
 Xem [CLAUDE.md](CLAUDE.md) — mọi session/AI làm việc trên project này phải cập nhật
