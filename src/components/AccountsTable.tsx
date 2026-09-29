@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Trash2, Undo2 } from "lucide-react";
 import type { AccountWithCount, Platform, UploadEntryView } from "@/lib/types";
 import Countdown from "./Countdown";
@@ -40,6 +40,24 @@ export default function AccountsTable({
   onSyncOne,
 }: Props) {
   const [search, setSearch] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // "/" jumps focus to search from anywhere on the page — but not while the
+  // user is already typing in some other field (an input/textarea/select or
+  // a contentEditable), so it doesn't hijack a literal "/" they're typing.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable;
+      if (isTyping) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -223,11 +241,17 @@ export default function AccountsTable({
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
+          ref={searchInputRef}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Tìm tài khoản..."
-          className="w-full py-2 pl-9 pr-3"
+          className="w-full py-2 pl-9 pr-9"
         />
+        {!search && (
+          <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-400 dark:border-slate-600 dark:text-slate-500">
+            /
+          </kbd>
+        )}
       </div>
 
       {/* Desktop: table. max-h + overflow-y makes this div itself the sticky

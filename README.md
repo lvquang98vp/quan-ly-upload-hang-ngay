@@ -223,7 +223,11 @@ cao màn hình.
   hiện số lượng tài khoản theo từng nền tảng, đếm trực tiếp từ mảng `accounts` đã
   tải (không gọi API riêng).
 - Sắp xếp theo bảng chữ cái (`orderBy: { code: "asc" }` ở API).
-- Ô tìm kiếm lọc theo mã tài khoản (client-side, không gọi API).
+- Ô tìm kiếm lọc theo mã tài khoản (client-side, không gọi API). Phím tắt `/` từ
+  bất kỳ đâu trên trang sẽ focus vào ô này (trừ khi đang gõ trong 1 ô nhập khác —
+  check `tagName`/`isContentEditable` của `e.target` để không cướp phím `/` khi
+  người dùng đang gõ, vd vào ô Link store). Enter trong ô nhập số lượng đã tự
+  submit sẵn nhờ nằm trong `<form>` chuẩn — không cần code JS riêng cho việc đó.
 - Username tách ra từ URL thay vì chữ "Link store" chung chung
   (`extractStoreUsername()` trong [src/lib/storeLink.ts](src/lib/storeLink.ts) —
   Redbubble lấy phần sau `/people/`, TeePublic lấy phần sau `/user/`; fallback về
