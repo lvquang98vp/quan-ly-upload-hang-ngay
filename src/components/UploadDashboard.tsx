@@ -114,6 +114,19 @@ export default function UploadDashboard() {
     load();
   }
 
+  async function syncStores(stores: { code: string; storeLink: string; platform: Platform }[]): Promise<string | null> {
+    if (stores.length === 0) return "Chưa có tài khoản nào có link store để đồng bộ.";
+    if (!isExtensionAvailable()) return "Chưa cài extension đồng bộ — xem hướng dẫn trong thư mục extension/.";
+
+    const results = await syncStoresViaExtension(stores);
+    await fetch("/api/sync/designs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ results }),
+    });
+    return null;
+  }
+
   async function handleSync() {
     setSyncing(true);
     setSyncMessage(null);
@@ -121,27 +134,26 @@ export default function UploadDashboard() {
       const stores = (accounts ?? [])
         .filter((a) => a.storeLink)
         .map((a) => ({ code: a.code, storeLink: a.storeLink as string, platform: a.platform }));
-
-      if (stores.length === 0) {
-        setSyncMessage("Chưa có tài khoản nào có link store để đồng bộ.");
-        return;
-      }
-      if (!isExtensionAvailable()) {
-        setSyncMessage("Chưa cài extension đồng bộ — xem hướng dẫn trong thư mục extension/.");
-        return;
-      }
-
-      const results = await syncStoresViaExtension(stores);
-      await fetch("/api/sync/designs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ results }),
-      });
+      const err = await syncStores(stores);
+      if (err) setSyncMessage(err);
     } catch (err) {
       setSyncMessage(err instanceof Error ? err.message : "Đồng bộ thất bại.");
     } finally {
       await load();
       setSyncing(false);
+    }
+  }
+
+  async function handleSyncOne(id: string): Promise<string | null> {
+    const acc = (accounts ?? []).find((a) => a.id === id);
+    if (!acc?.storeLink) return "Tài khoản chưa có link store.";
+    try {
+      const err = await syncStores([{ code: acc.code, storeLink: acc.storeLink, platform: acc.platform }]);
+      return err;
+    } catch (err) {
+      return err instanceof Error ? err.message : "Đồng bộ thất bại.";
+    } finally {
+      await load();
     }
   }
 
@@ -177,6 +189,7 @@ export default function UploadDashboard() {
             onDelete={handleDelete}
             onUndo={handleUndo}
             onUpdateStoreLink={handleUpdateStoreLink}
+            onSyncOne={handleSyncOne}
           />
         </>
       )}

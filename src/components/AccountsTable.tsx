@@ -18,6 +18,7 @@ export default function AccountsTable({
   onDelete,
   onUndo,
   onUpdateStoreLink,
+  onSyncOne,
 }: {
   accounts: AccountWithCount[];
   onAddQuantity: (id: string, code: string, quantity: number) => Promise<string | null>;
@@ -25,12 +26,23 @@ export default function AccountsTable({
   onDelete: (id: string, code: string) => void;
   onUndo: (entryId: string) => void;
   onUpdateStoreLink: (id: string, storeLink: string) => Promise<string | null>;
+  onSyncOne: (id: string) => Promise<string | null>;
 }) {
   const [search, setSearch] = useState("");
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [confirmingEntryId, setConfirmingEntryId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncRowError, setSyncRowError] = useState<Record<string, string>>({});
+
+  async function handleSyncOne(id: string) {
+    setSyncingId(id);
+    setSyncRowError((prev) => ({ ...prev, [id]: "" }));
+    const err = await onSyncOne(id);
+    setSyncingId(null);
+    setSyncRowError((prev) => ({ ...prev, [id]: err ?? "" }));
+  }
 
   const [newCode, setNewCode] = useState("");
   const [newPlatform, setNewPlatform] = useState<Platform>("REDBUBBLE");
@@ -135,6 +147,18 @@ export default function AccountsTable({
                         >
                           {acc.totalDesigns} design
                         </p>
+                      )}
+                      {acc.storeLink && (
+                        <button
+                          onClick={() => handleSyncOne(acc.id)}
+                          disabled={syncingId === acc.id}
+                          className="mt-1 block text-xs font-medium text-blue-500 hover:underline disabled:opacity-50"
+                        >
+                          {syncingId === acc.id ? "Đang đồng bộ..." : "Đồng bộ"}
+                        </button>
+                      )}
+                      {syncRowError[acc.id] && (
+                        <p className="mt-1 text-xs text-red-600">{syncRowError[acc.id]}</p>
                       )}
                     </td>
                   )}
