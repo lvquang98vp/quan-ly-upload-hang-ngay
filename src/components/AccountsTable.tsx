@@ -7,6 +7,7 @@ import Countdown from "./Countdown";
 import StoreLinkCell from "./StoreLinkCell";
 import SyncButton from "./SyncButton";
 import Button from "./ui/Button";
+import Input from "./ui/Input";
 import { PlatformBadge } from "./ui/Badge";
 
 type Props = {
@@ -170,13 +171,13 @@ export default function AccountsTable({
           }}
           className="flex items-center gap-1.5"
         >
-          <input
+          <Input
             type="number"
             min={1}
             value={inputs[acc.id] ?? ""}
             onChange={(e) => setInputs((prev) => ({ ...prev, [acc.id]: e.target.value }))}
             placeholder="SL"
-            className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="w-16 px-2 py-1.5"
           />
           <Button type="submit" variant="primary" size="sm" disabled={submittingId === acc.id}>
             Ghi
@@ -189,22 +190,22 @@ export default function AccountsTable({
 
   const addAccountForm = (
     <form onSubmit={handleAddAccount} className="flex flex-wrap items-center gap-2">
-      <input
+      <Input
         value={newCode}
         onChange={(e) => setNewCode(e.target.value)}
         placeholder="Mã tài khoản mới"
-        className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        className="min-w-0 flex-1 px-2.5 py-1.5"
       />
-      <input
+      <Input
         value={newStoreLink}
         onChange={(e) => setNewStoreLink(e.target.value)}
         placeholder="Link store (không bắt buộc)"
-        className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        className="min-w-0 flex-1 px-2.5 py-1.5"
       />
       <select
         value={newPlatform}
         onChange={(e) => setNewPlatform(e.target.value as Platform)}
-        className="shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        className="shrink-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
       >
         <option value="REDBUBBLE">Redbubble</option>
         <option value="TEEPUBLIC">TeePublic</option>
@@ -221,11 +222,11 @@ export default function AccountsTable({
     <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
+        <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Tìm tài khoản..."
-          className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="w-full py-2 pl-9 pr-3"
         />
       </div>
 

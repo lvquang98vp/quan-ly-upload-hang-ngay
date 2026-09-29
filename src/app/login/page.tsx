@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,22 +43,18 @@ export default function LoginPage() {
           Quản lý Upload Hằng Ngày
         </h1>
         <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">Nhập mật khẩu để tiếp tục.</p>
-        <input
+        <Input
           type="password"
           autoFocus
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Mật khẩu"
-          className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-base outline-none focus:border-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="mb-3 w-full text-base"
         />
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
-        >
+        <Button type="submit" variant="primary" size="md" disabled={loading} className="w-full">
           {loading ? "Đang kiểm tra..." : "Đăng nhập"}
-        </button>
+        </Button>
       </form>
     </div>
   );

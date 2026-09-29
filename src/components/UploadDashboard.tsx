@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AccountWithCount, Platform, UploadEntryView } from "@/lib/types";
-import { RefreshCw, Square } from "lucide-react";
+import { Loader2, RefreshCw, Square } from "lucide-react";
 import { isExtensionAvailable, stopSyncViaExtension, syncStoresViaExtension } from "@/lib/extensionBridge";
 import AccountsTable from "./AccountsTable";
 import PlatformStats from "./PlatformStats";
@@ -193,7 +193,10 @@ export default function UploadDashboard() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {accounts === null && !error ? (
-        <p className="text-center text-sm text-slate-400">Đang tải...</p>
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Đang tải...
+        </div>
       ) : (
         <>
           <PlatformStats accounts={accounts ?? []} />

@@ -22,7 +22,7 @@ không phải file local.
 ## Tech stack
 
 - **Next.js 16** (App Router, Turbopack), React 19, TypeScript.
-- **Tailwind CSS v4**.
+- **Tailwind CSS v4**, icon dùng [lucide-react](https://lucide.dev).
 - **Prisma 6.19.3** + Postgres (Neon). Cố định version 6.x vì Prisma 7 (bản mới nhất
   lúc viết README này) đổi cách cấu hình datasource, không tương thích ngược — không
   nâng cấp lên Prisma 7 trừ khi có lý do rõ ràng và migrate schema cẩn thận.
@@ -62,6 +62,7 @@ src/components/
   Countdown.tsx               # Đếm ngược HH:MM:SS, tick mỗi giây
   ui/Button.tsx                # Button dùng chung: variant × size
   ui/Badge.tsx                 # PlatformBadge dùng chung
+  ui/Input.tsx                  # Input dùng chung (search, form, sửa link, số lượng...)
 extension/                    # Extension Chrome riêng (project tách biệt, xem bên dưới)
   manifest.json, background.js, README.md
 ```
@@ -167,6 +168,10 @@ Bảo vệ bằng 1 password đơn giản qua biến `APP_PASSWORD`:
   (`sm`/`md`/`icon`). Icon action (Xoá, đồng bộ...) dùng `variant="ghost" size="icon"`.
 - `Badge.tsx` — `<PlatformBadge platform={...} />`, độ rộng cố định để 2 nền tảng
   luôn thẳng hàng.
+- `Input.tsx` — 1 style input dùng cho mọi ô nhập trong app (search, thêm account,
+  sửa link, nhập số lượng, mật khẩu đăng nhập) — trước đây mỗi nơi tự viết className
+  hơi khác nhau (padding, ring khi focus...), giờ chỉ 1 nguồn, chỉnh kích thước qua
+  `className` (vd `className="w-16 px-2 py-1.5"` cho ô nhập số lượng nhỏ trong bảng).
 
 Icon dùng [lucide-react](https://lucide.dev) (tree-shakeable, chỉ bundle icon nào
 import) thay vì tự vẽ SVG hay dùng chữ — chuẩn phổ biến cho UI kiểu SaaS/dashboard.
@@ -266,6 +271,16 @@ build` — **bắt buộc phải có**, thiếu là build fail trên Vercel (m�
   được, có lần còn tệ hơn (0/13 account thay vì 6/13). Kết luận: đây là giới hạn cứng
   của việc gọi từ server Node, không phải bug sửa được bằng code — xem mục "Đồng bộ
   tổng số design" ở trên để biết vì sao phải chuyển hẳn sang extension.
+- **Font Geist đã cấu hình nhưng không hiển thị**: `globals.css` (còn nguyên từ lúc
+  `create-next-app` khởi tạo) có dòng `body { font-family: Arial, Helvetica,
+  sans-serif; }` — ghi đè âm thầm lên biến `--font-geist-sans` đã setup công phu
+  trong `layout.tsx`, khiến app hiển thị bằng Arial suốt từ đầu dù tưởng đang dùng
+  Geist. Cùng lúc đó `--background`/`--foreground` + block `prefers-color-scheme`
+  trong cùng file cũng là dead code — không có chỗ nào đọc 2 biến này (app dùng
+  class `dark:` của Tailwind trực tiếp trên từng phần tử, không qua CSS variable).
+  Đã dọn sạch, `globals.css` giờ chỉ còn import Tailwind + map font. Cũng đã xoá
+  5 file SVG mẫu (`file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg`)
+  trong `public/` — sót lại từ scaffold, không có chỗ nào import tới.
 
 ## Đồng bộ tổng số design (Redbubble + TeePublic)
 

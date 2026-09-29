@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ExternalLink, Link2 } from "lucide-react";
 import type { Platform } from "@/lib/types";
 import { extractStoreUsername } from "@/lib/storeLink";
+import Input from "./ui/Input";
 
 // Native browsers fire click, click, then dblclick for a double-click, in that
 // order — so by the time dblclick tells us it's a double-click, the first click
@@ -53,7 +54,7 @@ export default function StoreLinkCell({
   if (editing) {
     return (
       <div>
-        <input
+        <Input
           autoFocus
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -71,7 +72,7 @@ export default function StoreLinkCell({
           onBlur={handleSave}
           placeholder="https://..."
           disabled={saving}
-          className="w-40 rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="w-40 px-2 py-1.5"
         />
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
