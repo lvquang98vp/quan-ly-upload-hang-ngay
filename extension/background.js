@@ -15,19 +15,34 @@ function sleep(ms) {
 
 function waitForTabComplete(tabId) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       chrome.tabs.onUpdated.removeListener(listener);
       reject(new Error("Tải trang quá lâu."));
     }, PAGE_LOAD_TIMEOUT_MS);
 
+    function finish() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }
+
     function listener(updatedTabId, info) {
-      if (updatedTabId === tabId && info.status === "complete") {
-        clearTimeout(timer);
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
+      if (updatedTabId === tabId && info.status === "complete") finish();
     }
     chrome.tabs.onUpdated.addListener(listener);
+
+    // Race guard: a fast/cached page can already be "complete" by the time
+    // this runs (chrome.tabs.create's own await already lost that race
+    // once), so also check the tab's current status directly.
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime.lastError) return;
+      if (tab && tab.status === "complete") finish();
+    });
   });
 }
 
