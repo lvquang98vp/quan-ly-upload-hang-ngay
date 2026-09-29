@@ -6,6 +6,10 @@ import { isExtensionAvailable, syncStoresViaExtension } from "@/lib/extensionBri
 import AccountsTable from "./AccountsTable";
 import PlatformStats from "./PlatformStats";
 
+// Tạm ẩn nút đồng bộ toàn bộ trong lúc debug từng account qua nút "Đồng bộ"
+// riêng ở mỗi dòng (xem AccountsTable) — bật lại khi hết cần cô lập lỗi.
+const SHOW_SYNC_ALL_BUTTON = false;
+
 export default function UploadDashboard() {
   const [accounts, setAccounts] = useState<AccountWithCount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -164,13 +168,15 @@ export default function UploadDashboard() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Quản lý Upload Hằng Ngày</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Redbubble &amp; TeePublic</p>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
-        >
-          {syncing ? "Đang đồng bộ..." : "Đồng bộ"}
-        </button>
+        {SHOW_SYNC_ALL_BUTTON && (
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+          >
+            {syncing ? "Đang đồng bộ..." : "Đồng bộ"}
+          </button>
+        )}
       </header>
 
       {syncMessage && <p className="text-sm text-slate-500 dark:text-slate-400">{syncMessage}</p>}
