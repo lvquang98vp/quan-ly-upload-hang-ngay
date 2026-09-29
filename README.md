@@ -196,6 +196,27 @@ phải 1 bảng cố gắng tự co giãn:
   `UndoControl`, `QuantityForm`) định nghĩa ngay trong `AccountsTable.tsx` — không
   lặp code logic, chỉ khác phần JSX hiển thị.
 
+### Header bảng dính (sticky) khi danh sách dài
+
+Nhiều account thì phải cuộn dài — dòng tiêu đề bảng (desktop) dùng `position:
+sticky` để luôn hiển thị khi cuộn. **Bug đã gặp khi làm cái này**: ban đầu bọc
+bảng trong `<div className="overflow-x-auto">` rồi thêm `sticky top-0` vào từng
+`<th>` — không dính, header vẫn trôi theo scroll bình thường.
+
+Nguyên nhân: theo spec CSS, nếu 1 trục overflow (ở đây là `overflow-x: auto`)
+khác `visible`, thì trục còn lại (`overflow-y`) tự động bị đổi từ `visible` thành
+`auto` — dù không set. Div đó vô tình trở thành "vùng cuộn" hợp lệ theo CSS,
+nhưng vì chiều cao của nó tự co theo nội dung (không giới hạn), nó **không bao
+giờ thực sự cuộn** — còn trang thì cuộn qua `window`. `position: sticky` bám theo
+**ancestor cuộn gần nhất**, mà ancestor đó (chính cái div) không cuộn, nên sticky
+coi như vô hiệu.
+
+**Fix**: cho div bọc bảng có `max-h-[70vh] overflow-auto` — chủ động biến nó
+thành vùng cuộn dọc thật sự (giống bảng trong Google Sheets/Airtable) thay vì để
+cả trang cuộn. Sticky lúc này bám đúng theo scroll của chính div đó. Tác dụng phụ
+tốt: bảng dài cũng không làm trang phình to vô hạn nữa, giới hạn trong 70% chiều
+cao màn hình.
+
 ### Các điểm khác
 
 - 2 **stat tile** ở đầu trang ([PlatformStats.tsx](src/components/PlatformStats.tsx))

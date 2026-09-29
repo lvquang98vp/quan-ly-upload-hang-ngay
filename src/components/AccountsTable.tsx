@@ -230,17 +230,26 @@ export default function AccountsTable({
         />
       </div>
 
-      {/* Desktop: table */}
-      <div className="hidden overflow-x-auto md:block">
+      {/* Desktop: table. max-h + overflow-y makes this div itself the sticky
+          header's scrolling ancestor — overflow-x-auto alone would force
+          overflow-y to compute as "auto" too (per the CSS spec's visible/auto
+          interaction) without this div ever actually scrolling vertically,
+          which breaks position:sticky (it sticks to a container that never
+          scrolls instead of the page). */}
+      <div className="hidden max-h-[70vh] overflow-auto md:block">
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Tài khoản</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Nền tảng</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium text-right">Số lượng</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Đếm ngược</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Nhập upload mới</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium"></th>
+            <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {["Tài khoản", "Nền tảng", "Số lượng", "Đếm ngược", "Nhập upload mới", ""].map((label, i) => (
+                <th
+                  key={i}
+                  className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-white px-3 py-2 font-medium dark:border-slate-800 dark:bg-slate-900 ${
+                    label === "Số lượng" ? "text-right" : ""
+                  }`}
+                >
+                  {label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
