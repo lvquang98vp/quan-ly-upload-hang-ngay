@@ -164,9 +164,12 @@ bản đầu tiên — đã đổi theo yêu cầu người dùng), sắp xếp 
 (`orderBy: { code: "asc" }` ở API):
 
 - Ô tìm kiếm lọc theo mã tài khoản (client-side, không gọi API).
-- Cột **Link store**: click mở tab mới, double-click chuyển sang sửa link. Xử lý
-  click/double-click bằng mốc thời gian (không dùng `setTimeout` debounce) — xem
-  lịch sử lỗi bên dưới, đây là chỗ từng có bug thật.
+- Cột **Link store**: hiện **username** tách ra từ URL thay vì chữ "Link store"
+  chung chung (`extractStoreUsername()` trong [src/lib/storeLink.ts](src/lib/storeLink.ts)
+  — Redbubble lấy phần sau `/people/`, TeePublic lấy phần sau `/user/`; nếu URL không
+  khớp pattern thì fallback về chữ "Link store"). Click mở tab mới, double-click
+  chuyển sang sửa link. Xử lý click/double-click bằng mốc thời gian (không dùng
+  `setTimeout` debounce) — xem lịch sử lỗi bên dưới, đây là chỗ từng có bug thật.
 - Cột **Đếm ngược**: chỉ hiện giờ chạy trần (HH:MM:SS), không kèm chữ mô tả. Trống
   hoàn toàn nếu account chưa có upload nào trong cửa sổ hiện tại (không chạy đồng hồ
   vô nghĩa).
@@ -275,6 +278,17 @@ Bấm "Đồng bộ" trên web (UploadDashboard.tsx)
 **Không có gì tự động chạy nền** — đúng như quyết định của người dùng: chỉ đồng bộ
 khi chủ động bấm nút, tần suất do người dùng tự kiểm soát (tránh giống hành vi bot
 lặp lại liên tục, dù là từ trình duyệt thật).
+
+**Dừng giữa chừng**: nút "Dừng" chỉ hiện khi đang đồng bộ, gửi tin nhắn `STOP_SYNC`
+riêng cho extension (`stopSyncViaExtension()`). Extension đặt cờ `cancelRequested`,
+kiểm tra cờ này giữa mỗi lần poll và giữa mỗi account — dừng lại trong khoảng 1-2s,
+đóng tab đang mở, rồi trả về kết quả **đã đồng bộ được tới lúc đó** (không mất dữ
+liệu của các account đã xong trước khi dừng).
+
+**Đồng bộ riêng từng account**: mỗi dòng có link store đều có nút "Đồng bộ" nhỏ
+riêng (dùng chung hàm `syncStores()` trong `UploadDashboard.tsx`, chỉ khác mảng
+`stores` truyền vào có 1 hay nhiều phần tử) — hữu ích để test/gỡ lỗi 1 account mà
+không phải chờ hết cả lượt ~20 account.
 
 ### Setup (chỉ cần làm 1 lần, xem chi tiết ở [extension/README.md](extension/README.md))
 

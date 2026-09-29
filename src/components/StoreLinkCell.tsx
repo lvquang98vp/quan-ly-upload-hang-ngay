@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import type { Platform } from "@/lib/types";
+import { extractStoreUsername } from "@/lib/storeLink";
 
 // Native browsers fire click, click, then dblclick for a double-click, in that
 // order — so by the time dblclick tells us it's a double-click, the first click
@@ -16,10 +18,12 @@ function normalizeUrl(url: string): string {
 export default function StoreLinkCell({
   accountId,
   link,
+  platform,
   onSave,
 }: {
   accountId: string;
   link: string | null;
+  platform: Platform;
   onSave: (id: string, link: string) => Promise<string | null>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -88,6 +92,8 @@ export default function StoreLinkCell({
     setEditing(true);
   }
 
+  const username = link ? extractStoreUsername(link, platform) : null;
+
   return (
     <button
       type="button"
@@ -100,7 +106,7 @@ export default function StoreLinkCell({
           : "text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
       }
     >
-      {link ? "Link store" : "+ Thêm link"}
+      {link ? (username ?? "Link store") : "+ Thêm link"}
     </button>
   );
 }

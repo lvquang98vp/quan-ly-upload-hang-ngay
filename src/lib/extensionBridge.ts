@@ -49,3 +49,18 @@ export function syncStoresViaExtension(stores: SyncStore[]): Promise<SyncResult[
     });
   });
 }
+
+// Best-effort: tells the extension to stop opening any further stores. The
+// original syncStoresViaExtension() call still resolves normally once the
+// extension responds with whatever it collected before stopping.
+export function stopSyncViaExtension(): Promise<void> {
+  return new Promise((resolve) => {
+    const extensionId = process.env.NEXT_PUBLIC_SYNC_EXTENSION_ID;
+    const runtime = getChromeRuntime();
+    if (!extensionId || !runtime) {
+      resolve();
+      return;
+    }
+    runtime.sendMessage(extensionId, { type: "STOP_SYNC" }, () => resolve());
+  });
+}

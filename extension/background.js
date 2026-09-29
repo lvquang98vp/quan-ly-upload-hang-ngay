@@ -10,6 +10,11 @@ const POLL_INTERVAL_MS = 1000;
 const MAX_POLL_ATTEMPTS = 25; // ~25s ceiling per store
 const DELAY_BETWEEN_STORES_MS = 1500;
 
+// Set by the "STOP_SYNC" message; checked between polls and between stores
+// so a running sync can be cancelled from the web app instead of having to
+// run to completion once started.
+let cancelRequested = false;
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -45,6 +50,7 @@ function extractDesignCount(platform) {
 async function pollForDesignCount(tabId, platform) {
   let lastResult = { totalDesigns: null, debugSnippet: null };
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+    if (cancelRequested) break;
     try {
       const [{ result }] = await chrome.scripting.executeScript({
         target: { tabId },
@@ -78,8 +84,13 @@ async function readOneStore(store) {
 }
 
 async function syncStores(stores) {
+  cancelRequested = false;
   const results = [];
   for (const store of stores) {
+    if (cancelRequested) {
+      console.log("[sync] Đã dừng theo yêu cầu, còn", stores.length - results.length, "account chưa đồng bộ.");
+      break;
+    }
     try {
       const totalDesigns = await readOneStore(store);
       results.push({ code: store.code, totalDesigns });
@@ -89,10 +100,16 @@ async function syncStores(stores) {
     }
     await sleep(DELAY_BETWEEN_STORES_MS);
   }
+  cancelRequested = false; // reset so the next run isn't cancelled immediately
   return results;
 }
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "STOP_SYNC") {
+    cancelRequested = true;
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message?.type !== "SYNC_STORES" || !Array.isArray(message.stores)) {
     return false;
   }
