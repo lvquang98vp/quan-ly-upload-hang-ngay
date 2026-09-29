@@ -40,6 +40,7 @@ src/lib/
   auth.ts                     # Hash password (Web Crypto, chạy được cả Edge lẫn Node)
   prisma.ts                   # Prisma client singleton
   format.ts                   # Format HH:MM:SS cho countdown
+  extensionBridge.ts          # Gửi lệnh đồng bộ sang extension qua chrome.runtime
 src/proxy.ts                  # Middleware bảo vệ trang bằng APP_PASSWORD (Next 16
                                # đổi tên quy ước "middleware.ts" -> "proxy.ts")
 src/app/
@@ -50,24 +51,29 @@ src/app/
   api/uploads/confirm/route.ts# POST — tạo 1 UploadEntry mới (dùng cho cả 2 nền tảng)
   api/uploads/[id]/route.ts   # DELETE — xoá 1 entry cụ thể (dùng cho "Hoàn tác")
   api/login/route.ts          # POST — kiểm tra APP_PASSWORD, set cookie
+  api/sync/designs/route.ts   # POST — lưu kết quả đồng bộ tổng design do extension gửi
 src/components/
-  UploadDashboard.tsx         # State chính, gọi API, optimistic update
+  UploadDashboard.tsx         # State chính, gọi API, optimistic update, nút Đồng bộ
   PlatformStats.tsx           # 2 stat tile đếm số tài khoản theo nền tảng
   AccountsTable.tsx           # Bảng kiểu Excel — UI chính của cả app
   StoreLinkCell.tsx           # Ô link store: click mở tab, double-click sửa
   Countdown.tsx               # Đếm ngược HH:MM:SS, tick mỗi giây
+extension/                    # Extension Chrome riêng (project tách biệt, xem bên dưới)
+  manifest.json, background.js, README.md
 ```
 
 ## Mô hình dữ liệu
 
 ```prisma
 model Account {
-  id        String        @id @default(cuid())
-  code      String        @unique   // vd "Red-1", "Tee-10"
-  platform  String                  // "REDBUBBLE" | "TEEPUBLIC", validate ở app code
-  storeLink String?
-  createdAt DateTime      @default(now())
-  entries   UploadEntry[]
+  id                   String        @id @default(cuid())
+  code                 String        @unique   // vd "Red-1", "Tee-10"
+  platform             String                  // "REDBUBBLE" | "TEEPUBLIC", validate ở app code
+  storeLink            String?
+  totalDesigns         Int?                    // tổng design lifetime, từ lần đồng bộ gần nhất
+  totalDesignsSyncedAt DateTime?
+  createdAt            DateTime      @default(now())
+  entries              UploadEntry[]
 }
 
 model UploadEntry {
@@ -184,8 +190,9 @@ bản đang chạy thật.**
 - `.env` → `DATABASE_URL` (connection string Neon, có `-pooler` trong hostname —
   **đừng đổi sang non-pooled endpoint**, pooled connection cần thiết cho môi trường
   serverless của Vercel).
-- `.env.local` → `APP_PASSWORD` (tuỳ chọn).
-- Trên Vercel: khai báo y hệt 2 biến trên trong Project Settings → Environment
+- `.env.local` → `APP_PASSWORD` (tuỳ chọn), `NEXT_PUBLIC_SYNC_EXTENSION_ID` (ID
+  extension đồng bộ số design — xem mục "Đồng bộ tổng số design" ở trên).
+- Trên Vercel: khai báo y hệt các biến trên trong Project Settings → Environment
   Variables → "Production and Preview".
 
 `package.json` có `postinstall: prisma generate` và `build: prisma generate && next
@@ -217,27 +224,64 @@ build` — **bắt buộc phải có**, thiếu là build fail trên Vercel (m�
   hẹp bị wrap 2 dòng ở điểm khác nhau giữa các cột → đường viền dưới header trông như
   bậc thang. Fix: `whitespace-nowrap` cho toàn bộ `<th>`.
 - **Delay cảm nhận rõ giữa bấm "Ghi" và số cập nhật**: xem mục "Hiệu năng" ở trên.
+- **`fetch()` Node.js bị Redbubble trả 403, `curl` cùng URL/header lại pass**: chặn ở
+  tầng fingerprint TLS/HTTP, không phải User-Agent hay tần suất gọi. Test thêm cho
+  thấy tỉ lệ pass/fail còn **không ổn định giữa các lần chạy** với cùng URL (giống
+  chấm điểm xác suất của Cloudflare) — thêm delay giữa các request không giải quyết
+  được, có lần còn tệ hơn (0/13 account thay vì 6/13). Kết luận: đây là giới hạn cứng
+  của việc gọi từ server Node, không phải bug sửa được bằng code — xem mục "Đồng bộ
+  tổng số design" ở trên để biết vì sao phải chuyển hẳn sang extension.
 
-## Ý tưởng đã bàn nhưng CHƯA implement
+## Đồng bộ tổng số design (Redbubble + TeePublic)
 
-Đừng tưởng những cái này đã có sẵn — chỉ mới là ý tưởng thảo luận, chưa có dòng code
-nào:
+`totalDesigns` là **tổng số design lifetime hiện có trên store** — khác hẳn bản chất
+với "Số lượng" (quota upload theo ngày/24h) mà phần lớn README này mô tả. Hiển thị
+như 1 dòng phụ nhỏ dưới ô Link store trong bảng (`"186 design"`), không phải cột
+riêng, để không làm bảng rộng thêm.
 
-- **Đọc tự động "tổng số design hiện có" từ trang store công khai (server-side
-  scrape)**: đã test — Redbubble server-render sẵn số lượng trong HTML thô (khả thi
-  về mặt kỹ thuật), TeePublic chặn bot rất nhanh (vài request là bị "Forbidden").
-  Ngoài ra số này là **tổng lifetime**, khác bản chất với "Số lượng" (quota theo
-  ngày/24h) app đang track — nếu làm thì phải là cột riêng, không thay thế cột hiện
-  tại.
-- **Browser extension gắn theo từng profile**: ý tưởng thay thế cho scrape — extension
-  chạy trong chính profile trình duyệt đã đăng nhập của người dùng, đọc số ngay trên
-  trang dashboard riêng (không phải trang public), gửi về app qua 1 API endpoint mới
-  (cần thêm cơ chế auth riêng cho extension, không dùng chung `APP_PASSWORD`). Ưu
-  điểm: không bị chặn bot vì là phiên trình duyệt thật của người dùng, dùng được cho
-  cả 2 nền tảng. Cần: (1) content script đọc đúng vị trí số trong DOM trang dashboard
-  thật (phải xin người dùng cung cấp HTML/screenshot vì AI không được tự đăng nhập
-  vào tài khoản seller của người dùng), (2) cơ chế map "profile nào ứng với account
-  code nào" trong extension, (3) endpoint mới nhận data kèm khoá bí mật riêng.
+### Vì sao lấy từ extension, không phải server
+
+Đã thử và bỏ 2 cách trước khi tới giải pháp cuối:
+
+1. **Server-side scrape trực tiếp**: cả Redbubble lẫn TeePublic đều server-render sẵn
+   số lượng trong HTML thô (`"<n> items"` / `"Designs <n>"`) — tưởng như đơn giản.
+   Nhưng test tay phát hiện **`fetch()` của Node.js bị Redbubble trả về 403** ngay cả
+   với header giống hệt trình duyệt thật, trong khi `curl` và trình duyệt thật lại
+   qua bình thường — tức bị chặn ở tầng fingerprint TLS/HTTP của client, **không sửa
+   được bằng code phía server**. TeePublic cũng chặn tương tự, thậm chí nhạy hơn.
+2. **Vercel Cron tự động 14:00 giờ VN cho riêng Redbubble**: từng được chốt làm
+   phương án chính, đã code xong (route `/api/cron/sync-redbubble` + `vercel.json`),
+   nhưng bị **xoá bỏ hoàn toàn** sau phát hiện ở mục 1 — vì chạy trên Vercel (cũng là
+   Node.js) sẽ gặp đúng vấn đề 403 y hệt lúc test local, chỉ là muộn hơn. Không có ích
+   gì để giữ lại code không dùng được.
+
+**Giải pháp cuối**: extension Chrome riêng tư ([extension/](extension/)) chạy trong
+chính trình duyệt thật của người dùng — trình duyệt thật không bị chặn (đã verify:
+cả `curl` lẫn navigate thật đều nhận HTTP 200 bình thường).
+
+### Luồng hoạt động
+
+```
+Bấm "Đồng bộ" trên web (UploadDashboard.tsx)
+  → web gửi {mã acc, link store, nền tảng} của MỌI account có storeLink
+    cho extension qua chrome.runtime.sendMessage (externally_connectable)
+  → extension mở lần lượt từng link trong tab ẩn (nghỉ 1.5s giữa các lần)
+  → đọc số theo đúng pattern của từng nền tảng, đóng tab
+  → trả kết quả về cho trang web
+  → web POST /api/sync/designs để lưu vào DB (dùng session đăng nhập sẵn có,
+    không cần token/mật khẩu riêng cho extension)
+```
+
+**Không có gì tự động chạy nền** — đúng như quyết định của người dùng: chỉ đồng bộ
+khi chủ động bấm nút, tần suất do người dùng tự kiểm soát (tránh giống hành vi bot
+lặp lại liên tục, dù là từ trình duyệt thật).
+
+### Setup (chỉ cần làm 1 lần, xem chi tiết ở [extension/README.md](extension/README.md))
+
+1. Load unpacked extension từ thư mục `extension/` vào Chrome (Developer mode).
+2. Sửa domain thật vào `extension/manifest.json` (`externally_connectable.matches`).
+3. Copy ID extension Chrome cấp, set vào biến `NEXT_PUBLIC_SYNC_EXTENSION_ID`
+   (`.env.local` + Vercel Environment Variables).
 
 ## Quy tắc bắt buộc cho mọi thay đổi
 

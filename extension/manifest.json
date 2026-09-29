@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Upload Tracker - Design Count Sync",
+  "description": "Đọc tổng số design trên Redbubble và TeePublic khi được app Quản lý Upload Hằng Ngày yêu cầu.",
+  "version": "1.0.0",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": ["*://*.teepublic.com/*", "*://*.redbubble.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3000/*",
+      "https://REPLACE-WITH-YOUR-VERCEL-DOMAIN/*"
+    ]
+  }
+}

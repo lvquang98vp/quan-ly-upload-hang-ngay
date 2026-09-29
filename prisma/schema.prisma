@@ -11,12 +11,14 @@ datasource db {
 // application code (see src/lib/types.ts) rather than a native enum, kept
 // consistent with when this schema targeted SQLite (no enum support there).
 model Account {
-  id        String        @id @default(cuid())
-  code      String        @unique
-  platform  String
-  storeLink String?
-  createdAt DateTime      @default(now())
-  entries   UploadEntry[]
+  id                   String        @id @default(cuid())
+  code                 String        @unique
+  platform             String
+  storeLink            String?
+  totalDesigns         Int?
+  totalDesignsSyncedAt DateTime?
+  createdAt            DateTime      @default(now())
+  entries              UploadEntry[]
 }
 
 model UploadEntry {

@@ -30,4 +30,8 @@ export type AccountWithCount = {
   nextResetAt: string | null;
   /** Entries still counted in the current window, oldest first. */
   entries: UploadEntryView[];
+  /** Lifetime total designs listed on the store, from the last sync. Null if never synced. */
+  totalDesigns: number | null;
+  /** ISO timestamp of the last successful design-count sync. Null if never synced. */
+  totalDesignsSyncedAt: string | null;
 };

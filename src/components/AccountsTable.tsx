@@ -124,6 +124,18 @@ export default function AccountsTable({
                   {i === 0 && (
                     <td rowSpan={rowCount} className="px-2 py-2 align-top">
                       <StoreLinkCell accountId={acc.id} link={acc.storeLink} onSave={onUpdateStoreLink} />
+                      {acc.totalDesigns !== null && (
+                        <p
+                          className="mt-1 text-xs text-slate-400 dark:text-slate-500"
+                          title={
+                            acc.totalDesignsSyncedAt
+                              ? `Cập nhật lúc ${new Date(acc.totalDesignsSyncedAt).toLocaleString("vi-VN")}`
+                              : undefined
+                          }
+                        >
+                          {acc.totalDesigns} design
+                        </p>
+                      )}
                     </td>
                   )}
                   {i === 0 && (

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AccountWithCount, Platform, UploadEntryView } from "@/lib/types";
+import { isExtensionAvailable, syncStoresViaExtension } from "@/lib/extensionBridge";
 import AccountsTable from "./AccountsTable";
 import PlatformStats from "./PlatformStats";
 
 export default function UploadDashboard() {
   const [accounts, setAccounts] = useState<AccountWithCount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -111,12 +114,54 @@ export default function UploadDashboard() {
     load();
   }
 
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const stores = (accounts ?? [])
+        .filter((a) => a.storeLink)
+        .map((a) => ({ code: a.code, storeLink: a.storeLink as string, platform: a.platform }));
+
+      if (stores.length === 0) {
+        setSyncMessage("Chưa có tài khoản nào có link store để đồng bộ.");
+        return;
+      }
+      if (!isExtensionAvailable()) {
+        setSyncMessage("Chưa cài extension đồng bộ — xem hướng dẫn trong thư mục extension/.");
+        return;
+      }
+
+      const results = await syncStoresViaExtension(stores);
+      await fetch("/api/sync/designs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results }),
+      });
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : "Đồng bộ thất bại.");
+    } finally {
+      await load();
+      setSyncing(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
-      <header>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Quản lý Upload Hằng Ngày</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Redbubble &amp; TeePublic</p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Quản lý Upload Hằng Ngày</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Redbubble &amp; TeePublic</p>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+        >
+          {syncing ? "Đang đồng bộ..." : "Đồng bộ"}
+        </button>
       </header>
+
+      {syncMessage && <p className="text-sm text-slate-500 dark:text-slate-400">{syncMessage}</p>}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
